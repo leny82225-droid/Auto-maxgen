@@ -1,136 +1,147 @@
--- Delta GUI Auto Job MAXGEN (Clarity Reboot Style)
--- Owner: brukontop
+-- Roblox Auto Job BedilPusat - Terbatas & Aman (Delta Mobile Exec)
 
 local Players = game:GetService("Players")
-local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local LocalPlayer = Players.LocalPlayer
-
--- UI Setup
-local ScreenGui = Instance.new("ScreenGui")
-local MainFrame = Instance.new("Frame")
-local ToggleButton = Instance.new("TextButton")
-local Title = Instance.new("TextLabel")
-
-ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-ScreenGui.ResetOnSpawn = false
-
-MainFrame.Parent = ScreenGui
-MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-MainFrame.Position = UDim2.new(0.05, 0, 0.35, 0)
-MainFrame.Size = UDim2.new(0, 190, 0, 110)
-MainFrame.Active = true
-MainFrame.Draggable = true
-
-Title.Parent = MainFrame
-Title.Text = "MAXGEN AUTO JOB"
-Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-Title.Size = UDim2.new(1, 0, 0, 30)
-Title.Font = Enum.Font.SourceSansBold
-Title.TextSize = 14
-
-ToggleButton.Parent = MainFrame
-ToggleButton.Text = "AUTO JOB: OFF"
-ToggleButton.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
-ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-ToggleButton.Position = UDim2.new(0.1, 0, 0.45, 0)
-ToggleButton.Size = UDim2.new(0.8, 0, 0.4, 0)
-ToggleButton.Font = Enum.Font.SourceSansBold
 
 local isRunning = false
 
--- Safe Noclip khusus karakter
-local function applyNoclip(char)
-    for _, part in pairs(char:GetDescendants()) do
-        if part:IsA("BasePart") then
-            part.CanCollide = false
+-- Fungsi Teleportasi yang Dibatasi (Memakai Jeda & Jarak Aman)
+local function tpToLimited(targetPart)
+    if not targetPart or not targetPart:IsA("BasePart") then return end
+    
+    local char = LocalPlayer.Character
+    if not char then return end
+    
+    local root = char:FindFirstChild("HumanoidRootPart")
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    
+    -- Teleportasi Mobil jika sedang di DriveSeat
+    if humanoid and humanoid.SeatPart and humanoid.SeatPart:IsA("VehicleSeat") then
+        local vehicle = humanoid.SeatPart.Parent
+        if vehicle and vehicle:IsA("Model") then
+            -- Beri sedikit jeda waktu sebelum jalan
+            task.wait(0.3)
+            vehicle:PivotTo(targetPart.CFrame * CFrame.new(0, 3, 0))
+            task.wait(0.5) -- Jeda setelah teleport agar fisik mobil stabil
+            return
         end
+    end
+    
+    -- Teleportasi Karakter
+    if root then
+        root.CFrame = targetPart.CFrame * CFrame.new(0, 3, 0)
     end
 end
 
--- Fungsi Jalan Halus (Tween)
-local function tweenTo(targetCFrame, speed)
-    local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-    local root = char:WaitForChild("HumanoidRootPart")
-    
-    applyNoclip(char)
-    
-    local distance = (root.Position - targetCFrame.Position).Magnitude
-    local duration = distance / (speed or 35)
-    
-    local tween = TweenService:Create(root, TweenInfo.new(duration, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
-    tween:Play()
-    tween.Completed:Wait()
-end
-
--- Cari Lokasi Tanda Kuning (DeliveryBeam / DummyTarget / BedilPusat)
-local function findJobTarget()
-    -- 1. Cek DeliveryBeam
-    local beam = Workspace:FindFirstChild("DeliveryBeam", true)[span_0](start_span)[span_0](end_span)[span_1](start_span)[span_1](end_span)[span_2](start_span)[span_2](end_span)
-    if beam and beam:IsA("Beam") and beam.Attachment1 then
-        return beam.Attachment1.WorldPosition
-    end
-
-    -- 2. Cek DummyTarget di Workspace
-    for _, obj in pairs(Workspace:GetChildren()) do
-        if string.find(obj.Name, "DummyTarget") and obj:IsA("BasePart") then[span_3](start_span)[span_3](end_span)[span_4](start_span)[span_4](end_span)[span_5](start_span)[span_5](end_span)[span_6](start_span)[span_6](end_span)
-            return obj.Position
+-- Mencari Folder Utama BedilPusat
+local function getBedilFolder()
+    for _, child in pairs(Workspace:GetChildren()) do
+        local lowerName = string.lower(child.Name)
+        if string.find(lowerName, "bedil") then
+            return child
         end
     end
-
-    -- 3. Cek DeliveryTargets di Ekonomi.BedilPusat
-    local ekonomi = Workspace:FindFirstChild("Ekonomi")[span_7](start_span)[span_7](end_span)[span_8](start_span)[span_8](end_span)[span_9](start_span)[span_9](end_span)
-    if ekonomi then
-        local bedil = ekonomi:FindFirstChild("BedilPusat")[span_10](start_span)[span_10](end_span)[span_11](start_span)[span_11](end_span)
-        if bedil and bedil:FindFirstChild("DeliveryTargets") then[span_12](start_span)[span_12](end_span)
-            local targets = bedil.DeliveryTargets:GetChildren()[span_13](start_span)[span_13](end_span)
-            if #targets > 0 then
-                return targets[1].Position
-            end
-        end
-    end
-
     return nil
 end
 
--- Main Loop Auto Job MAXGEN
-local function startTikTokAutoJob()
+-- Deteksi Target Acak yang Sedang Aktif
+local function getActiveTarget()
+    local bedil = getBedilFolder()
+    if not bedil then return nil end
+    
+    local deliveryTargets = bedil:FindFirstChild("DeliveryTargets")
+    if not deliveryTargets then return nil end
+    
+    for _, target in pairs(deliveryTargets:GetChildren()) do
+        if target:IsA("BasePart") then
+            for _, desc in pairs(target:GetDescendants()) do
+                if (desc:IsA("BillboardGui") or desc:IsA("Beam")) and desc.Enabled then
+                    return target
+                end
+            end
+            if target.Transparency < 1 then
+                return target
+            end
+        end
+    end
+    
+    return deliveryTargets:FindFirstChildOfClass("Part")
+end
+
+-- Logic Auto Job
+local function startBedilJob()
     task.spawn(function()
         while isRunning do
-            local targetPos = findJobTarget()
+            local bedil = getBedilFolder()
             
-            if targetPos then
-                -- Jalan ke titik tujuan pengantaran
-                tweenTo(CFrame.new(targetPos + Vector3.new(0, 3, 0)), 40)
-                
-                -- Delay acak agar terlihat alami
-                task.wait(math.random(15, 25) / 10)
-            else
-                -- Jika tidak ada target aktif, balik ke lokasi pendaftaran MAXGEN
-                local ekonomi = Workspace:FindFirstChild("Ekonomi")[span_14](start_span)[span_14](end_span)[span_15](start_span)[span_15](end_span)[span_16](start_span)[span_16](end_span)
-                if ekonomi and ekonomi:FindFirstChild("BedilPusat") then[span_17](start_span)[span_17](end_span)[span_18](start_span)[span_18](end_span)
-                    local startPoint = ekonomi.BedilPusat:FindFirstChild("Job") or ekonomi.BedilPusat:FindFirstChild("Finish")[span_19](start_span)[span_19](end_span)
-                    if startPoint then
-                        tweenTo(startPoint:GetPivot(), 35)
-                    end
+            if bedil then
+                -- 1. Ambil Job
+                local jobPart = bedil:FindFirstChild("Job")
+                if jobPart then
+                    tpToLimited(jobPart)
+                    task.wait(2.5) -- Waktu jeda dipanjangin sedikit agar tidak terlalu ngebut
                 end
                 
-                task.wait(2)
+                if not isRunning then break end
+                
+                -- 2. Ke Target Antar
+                local targetPart = getActiveTarget()
+                if targetPart then
+                    tpToLimited(targetPart)
+                    task.wait(2.5)
+                end
+                
+                if not isRunning then break end
+                
+                -- 3. Ke Finish
+                local finishPart = bedil:FindFirstChild("Finish")
+                if finishPart then
+                    tpToLimited(finishPart)
+                    task.wait(2.5)
+                end
             end
+            
+            task.wait(1.5)
         end
     end)
 end
 
--- Toggle On/Off
-ToggleButton.MouseButton1Click:Connect(function()
+-- GUI Mengambang
+local ScreenGui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
+ScreenGui.Name = "BedilAutoJobGui"
+ScreenGui.ResetOnSpawn = false
+
+local Frame = Instance.new("Frame", ScreenGui)
+Frame.Size = UDim2.new(0, 150, 0, 75)
+Frame.Position = UDim2.new(0.05, 0, 0.35, 0)
+Frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+Frame.Active = true
+Frame.Draggable = true
+
+local Corner = Instance.new("UICorner", Frame)
+Corner.CornerRadius = UDim.new(0, 8)
+
+local Btn = Instance.new("TextButton", Frame)
+Btn.Size = UDim2.new(0.85, 0, 0.6, 0)
+Btn.Position = UDim2.new(0.075, 0, 0.2, 0)
+Btn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+Btn.Text = "BEDIL: OFF"
+Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+Btn.Font = Enum.Font.SourceSansBold
+Btn.TextSize = 15
+
+local BtnCorner = Instance.new("UICorner", Btn)
+BtnCorner.CornerRadius = UDim.new(0, 6)
+
+Btn.MouseButton1Click:Connect(function()
     isRunning = not isRunning
     if isRunning then
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(40, 180, 40)
-        ToggleButton.Text = "AUTO JOB: ON"
-        startTikTokAutoJob()
+        Btn.Text = "BEDIL: ON"
+        Btn.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
+        startBedilJob()
     else
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
-        ToggleButton.Text = "AUTO JOB: OFF"
+        Btn.Text = "BEDIL: OFF"
+        Btn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
     end
 end)
